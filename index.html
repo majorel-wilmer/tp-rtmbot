@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>VCO - RTM Bot Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">RTM</div>
+        <div>
+          <h1>VCO - RTM Bot</h1>
+          <p>Alert health, bot impact, and rollout readiness</p>
+        </div>
+      </div>
+
+      <section class="upload-panel">
+        <h2>Upload Files</h2>
+        <p>Upload the template, the alert health check workbook, or the bot impact workbook. Multiple files can be loaded together.</p>
+        <label class="upload-drop" for="fileInput">
+          <span>Choose Excel files</span>
+          <small>.xlsx, .xls, .csv</small>
+        </label>
+        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple />
+        <a class="template-link" href="outputs/VCO_RTM_Bot_Upload_Template.xlsx" download>Download Upload Template</a>
+        <button id="clearButton" type="button">Reset Demo Data</button>
+        <div id="uploadStatus" class="upload-status">Using starter sample data.</div>
+      </section>
+
+      <section class="filters">
+        <h2>Filters</h2>
+        <label>
+          Client
+          <select id="clientFilter"></select>
+        </label>
+        <label>
+          Batch
+          <select id="batchFilter"></select>
+        </label>
+        <label>
+          Status
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="PASS">PASS</option>
+            <option value="FAIL">FAIL</option>
+            <option value="Needs Review">Needs Review</option>
+          </select>
+        </label>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>RTM Command Center</h1>
+          <p id="dataSubtitle">Portfolio view based on uploaded RTM Bot files</p>
+        </div>
+        <button id="exportButton" type="button">Export Alert CSV</button>
+      </header>
+
+      <section class="kpis" id="kpiGrid"></section>
+
+      <section class="dashboard-grid">
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Alert Health Trend</h2>
+            <span>Pass rate by audit date</span>
+          </div>
+          <canvas id="trendChart"></canvas>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Overall Status</h2>
+            <span>Visible alert rows</span>
+          </div>
+          <canvas id="statusChart"></canvas>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Failures by Category</h2>
+            <span>Top operational drivers</span>
+          </div>
+          <canvas id="categoryChart"></canvas>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Bot Coverage</h2>
+            <span>Impact workbook</span>
+          </div>
+          <canvas id="coverageChart"></canvas>
+        </article>
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Batch Live Weeks</h2>
+            <span>Rollout schedule</span>
+          </div>
+          <div id="batchTimeline" class="timeline"></div>
+        </article>
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Batch Client Mapping</h2>
+            <span id="batchClientCount"></span>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Batch</th>
+                  <th>Client</th>
+                  <th>Tool</th>
+                  <th>Live Week</th>
+                </tr>
+              </thead>
+              <tbody id="batchClientRows"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="analysis-grid">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Analysis</h2>
+            <span>Auto-generated from visible data</span>
+          </div>
+          <div id="analysisList" class="analysis-list"></div>
+        </article>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Monthly KPI</h2>
+            <span>SL, AHT, and volume</span>
+          </div>
+          <canvas id="monthlyChart"></canvas>
+        </article>
+      </section>
+
+      <section class="panel table-panel">
+        <div class="panel-head">
+          <h2>Alert Queue</h2>
+          <span id="rowCount"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th>
+                <th>Audit Date</th>
+                <th>Category</th>
+                <th>Alert</th>
+                <th>Status</th>
+                <th>Fail Checks</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="alertRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="data/actual_data.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>
