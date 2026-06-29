@@ -236,14 +236,19 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = urlparse(self.path).path
+        static_aliases = {
+            "/api/data_management": "/data-management.html",
+            "/api/template": "/outputs/VCO_RTM_Bot_Upload_Template.xlsx",
+        }
+        static_path = static_aliases.get(path, path)
         protected_paths = {
             "/data-management.html",
             "/outputs/VCO_RTM_Bot_Upload_Template.xlsx",
         }
-        if path in protected_paths and not self.is_authenticated():
+        if static_path in protected_paths and not self.is_authenticated():
             self.redirect("/login.html")
             return
-        if path == "/data":
+        if path in {"/data", "/api/data"}:
             data_path = ROOT / "data" / "actual_data.json"
             if not data_path.exists():
                 self.send_error(404, "Actual data has not been generated")
@@ -255,11 +260,13 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(data)
             return
+        if static_path != path:
+            self.path = static_path
         super().do_GET()
 
     def do_POST(self):
         path = urlparse(self.path).path
-        if path == "/login":
+        if path in {"/login", "/api/login"}:
             length = int(self.headers.get("Content-Length", "0"))
             form = parse_qs(self.rfile.read(length).decode("utf-8", "ignore"))
             supplied = form.get("password", [""])[0]
@@ -267,16 +274,16 @@ class Handler(SimpleHTTPRequestHandler):
                 token = secrets.token_urlsafe(32)
                 SESSIONS[token] = time.time() + SESSION_TTL_SECONDS
                 cookie = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={SESSION_TTL_SECONDS}"
-                self.redirect("/data-management.html", cookie)
+                self.redirect("/api/data_management", cookie)
             else:
                 self.redirect("/login.html?error=1")
             return
-        if path == "/logout":
+        if path in {"/logout", "/api/logout"}:
             SESSIONS.pop(self.session_token(), None)
             cookie = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
             self.redirect("/login.html", cookie)
             return
-        if path != "/upload":
+        if path not in {"/upload", "/api/upload"}:
             self.send_error(404)
             return
         if not self.is_authenticated():

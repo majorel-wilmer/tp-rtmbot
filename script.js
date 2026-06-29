@@ -104,7 +104,7 @@ async function loadInitialData() {
     return;
   }
   try {
-    const response = await fetch("/data", { cache: "no-store" });
+    const response = await fetch("/api/data", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     state = { ...(await response.json()), _schemaVersion: DATA_SCHEMA_VERSION };
     localStorage.setItem("vcoRtmDashboardSeed", JSON.stringify(state));
@@ -133,7 +133,7 @@ async function handleFiles(files) {
   files.forEach((file) => form.append("files", file, file.name));
   let next;
   try {
-    const response = await fetch("/upload", { method: "POST", body: form });
+    const response = await fetch("/api/upload", { method: "POST", body: form });
     if (response.status === 401) {
       window.location.href = "/login.html";
       return;

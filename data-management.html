@@ -20,11 +20,11 @@
         <a href="index.html">Overview</a>
         <a href="rollout.html">Rollout &amp; Analysis</a>
         <a href="alerts.html">Alert Queue</a>
-        <a class="active" href="data-management.html" aria-current="page">Data Management</a>
+        <a class="active" href="/api/data_management" aria-current="page">Data Management</a>
       </nav>
 
       <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
-      <form class="logout-form" method="post" action="/logout">
+      <form class="logout-form" method="post" action="/api/logout">
         <button class="logout-button" type="submit">Sign out</button>
       </form>
     </aside>
@@ -50,7 +50,7 @@
           </label>
           <input id="fileInput" type="file" accept=".xlsx,.xls" multiple />
           <div class="data-actions">
-            <a class="template-link" href="outputs/VCO_RTM_Bot_Upload_Template.xlsx" download>Download Upload Template</a>
+            <a class="template-link" href="/api/template" download>Download Upload Template</a>
             <button id="clearButton" type="button">Reset Data</button>
           </div>
           <div id="uploadStatus" class="upload-status">Loading dashboard data...</div>
@@ -59,6 +59,6 @@
     </main>
 
     <script src="data/actual_data.js"></script>
-    <script src="script.js?v=20260630-1"></script>
+    <script src="script.js?v=20260630-2"></script>
   </body>
 </html>
