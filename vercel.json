@@ -1,5 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": null,
+  "outputDirectory": ".",
   "rewrites": [
     { "source": "/upload", "destination": "/api/upload" },
     { "source": "/data", "destination": "/api/data" },
@@ -7,11 +10,5 @@
     { "source": "/logout", "destination": "/api/logout" },
     { "source": "/data-management.html", "destination": "/api/data_management" },
     { "source": "/outputs/VCO_RTM_Bot_Upload_Template.xlsx", "destination": "/api/template" }
-  ],
-  "functions": {
-    "api/*.py": {
-      "maxDuration": 60,
-      "excludeFiles": "{node_modules/**,outputs/*.png,.git/**,.agents/**,.upload_tmp/**}"
-    }
-  }
+  ]
 }
