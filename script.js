@@ -513,6 +513,185 @@ function exportCsv() {
   URL.revokeObjectURL(a.href);
 }
 
+function assistantClients() {
+  return [...new Set([
+    ...(state.alerts || []).map((row) => row.client),
+    ...(state.impact || []).map((row) => row.client),
+    ...(state.monthly || []).map((row) => row.client),
+    ...(state.batchClients || []).map((row) => row.client),
+  ].filter(Boolean))].sort((a, b) => b.length - a.length);
+}
+
+function findAssistantClient(question) {
+  const query = question.toLowerCase();
+  return assistantClients().find((client) => query.includes(client.toLowerCase())) || getValue("clientFilter") || "";
+}
+
+function matchesAssistantClient(value, client) {
+  if (!client) return true;
+  const rowClient = norm(value).toLowerCase();
+  const target = norm(client).toLowerCase();
+  return rowClient === target || rowClient.startsWith(`${target} -`) || target.startsWith(`${rowClient} -`);
+}
+
+function assistantScope(question) {
+  const client = findAssistantClient(question);
+  return {
+    client,
+    alerts: (state.alerts || []).filter((row) => matchesAssistantClient(row.client, client)),
+    impact: (state.impact || []).filter((row) => matchesAssistantClient(row.client, client)),
+    monthly: (state.monthly || []).filter((row) => matchesAssistantClient(row.client, client)),
+    batchClients: (state.batchClients || []).filter((row) => matchesAssistantClient(row.client, client)),
+  };
+}
+
+function topEntry(rows, selector) {
+  return Object.entries(countBy(rows, selector)).sort((a, b) => b[1] - a[1])[0];
+}
+
+function assistantPortfolioSummary(scope) {
+  const passRows = scope.alerts.filter((row) => row.overallStatus === "PASS");
+  const issueRows = scope.alerts.filter((row) => row.overallStatus !== "PASS");
+  const topCategory = topEntry(issueRows, (row) => row.category);
+  const covered = scope.impact.filter((row) => /yes|partial/i.test(row.covered)).length;
+  const coverage = scope.impact.length ? Math.round((covered / scope.impact.length) * 100) : 0;
+  const label = scope.client || "the portfolio";
+  return `${label} has ${scope.alerts.length} alert checks with a ${scope.alerts.length ? Math.round((passRows.length / scope.alerts.length) * 100) : 0}% pass rate and ${issueRows.length} issue row(s). ${topCategory ? `${topCategory[0]} is the largest issue category (${topCategory[1]} row(s)).` : "No issue category is currently recorded."} Bot coverage is ${coverage}% across ${scope.impact.length} task row(s).`;
+}
+
+function assistantFailureAnswer(scope, question) {
+  const issueRows = scope.alerts.filter((row) => row.overallStatus !== "PASS");
+  if (/which client|most fail|highest fail|worst client/.test(question) && !scope.client) {
+    const ranked = Object.entries(countBy(issueRows, (row) => row.client)).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return ranked.length ? `Clients with the most issue rows: ${ranked.map(([client, total]) => `${client} (${total})`).join(", ")}.` : "No client issue rows are currently recorded.";
+  }
+  const topCategories = Object.entries(countBy(issueRows, (row) => row.category)).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const failedChecks = {};
+  issueRows.forEach((row) => Object.entries(row.checks || {}).forEach(([check, result]) => {
+    if (result === "FAIL") failedChecks[check] = (failedChecks[check] || 0) + 1;
+  }));
+  const checks = Object.entries(failedChecks).sort((a, b) => b[1] - a[1]).slice(0, 3);
+  const label = scope.client || "The portfolio";
+  return `${label} has ${issueRows.length} issue row(s). ${topCategories.length ? `Top categories: ${topCategories.map(([category, total]) => `${category} (${total})`).join(", ")}.` : "No failed categories are recorded."} ${checks.length ? `Most frequent failed checks: ${checks.map(([check, total]) => `${check} (${total})`).join(", ")}.` : ""}`.trim();
+}
+
+function assistantPerformanceAnswer(scope) {
+  if (scope.client) return assistantPortfolioSummary(scope);
+  const stats = {};
+  scope.alerts.forEach((row) => {
+    stats[row.client] ||= { total: 0, pass: 0 };
+    stats[row.client].total += 1;
+    if (row.overallStatus === "PASS") stats[row.client].pass += 1;
+  });
+  const ranked = Object.entries(stats)
+    .map(([client, value]) => [client, Math.round((value.pass / value.total) * 100), value.total])
+    .sort((a, b) => b[1] - a[1]);
+  if (!ranked.length) return "No alert performance data is loaded.";
+  const best = ranked.slice(0, 3).map(([client, rate, total]) => `${client} ${rate}% (${total} rows)`).join(", ");
+  const worst = [...ranked].reverse().slice(0, 3).map(([client, rate, total]) => `${client} ${rate}% (${total} rows)`).join(", ");
+  return `Highest pass rates: ${best}. Lowest pass rates: ${worst}.`;
+}
+
+function assistantCoverageAnswer(scope) {
+  const covered = scope.impact.filter((row) => /yes|partial/i.test(row.covered));
+  const uncovered = scope.impact.filter((row) => /no/i.test(row.covered));
+  const rate = scope.impact.length ? Math.round((covered.length / scope.impact.length) * 100) : 0;
+  const tasks = uncovered.slice(0, 5).map((row) => row.task).filter(Boolean);
+  return `${scope.client || "Portfolio"} bot coverage is ${rate}%: ${covered.length} of ${scope.impact.length} task row(s) are covered or partially covered. ${uncovered.length} row(s) are uncovered${tasks.length ? `, including ${tasks.join(", ")}` : ""}.`;
+}
+
+function assistantRolloutAnswer(scope) {
+  if (scope.client && scope.batchClients.length) {
+    return scope.batchClients.map((row) => `${row.client} is mapped to ${row.batch}, live ${row.liveWeek}, using ${row.tool || "an unspecified tool"}.`).join(" ");
+  }
+  const batches = state.batches || [];
+  return batches.length ? batches.map((row) => `${row.batch}: ${row.liveWeek}${row.liveDate ? ` (${row.liveDate})` : ""}`).join("; ") + "." : "No rollout schedule is loaded.";
+}
+
+function assistantMonthlyAnswer(scope) {
+  if (!scope.monthly.length) return `No monthly KPI rows are loaded${scope.client ? ` for ${scope.client}` : ""}.`;
+  const average = (values) => values.reduce((sum, value) => sum + Number(value || 0), 0) / values.length;
+  const averageSl = Math.round(average(scope.monthly.map((row) => row.sl)) * 100);
+  const averageAht = average(scope.monthly.map((row) => row.aht)).toFixed(2);
+  const handled = scope.monthly.reduce((sum, row) => sum + Number(row.volumeHandled || 0), 0);
+  const forecast = scope.monthly.reduce((sum, row) => sum + Number(row.forecastVolume || 0), 0);
+  return `${scope.client || "Portfolio"} monthly KPI summary: average SL ${averageSl}%, average AHT ${averageAht}, handled volume ${handled.toLocaleString()}, and forecast volume ${forecast.toLocaleString()} across ${scope.monthly.length} row(s).`;
+}
+
+function buildAssistantAnswer(question) {
+  const query = norm(question).toLowerCase();
+  const scope = assistantScope(query);
+  if (!(state.alerts || []).length && !(state.impact || []).length && !(state.monthly || []).length) return "No dashboard data is loaded. Upload an RTM workbook in Data Management first.";
+  if (!query || /help|what can you|questions/.test(query)) return "I can summarize alert health, compare client pass rates, identify failure drivers, explain bot coverage, list rollout dates, and summarize monthly SL, AHT, and volume.";
+  if (/hello|^hi$|^hey$/.test(query)) return "Hello. Ask me about RTM alert health, client performance, failure drivers, bot coverage, rollout dates, or monthly KPIs.";
+  if (/source|file|upload/.test(query)) return `Current source file(s): ${(state.sourceFiles || []).join(", ") || "none"}.`;
+  if (/rollout|batch|live week|go live/.test(query)) return assistantRolloutAnswer(scope);
+  if (/coverage|covered|automation|uncovered|bot impact/.test(query)) return assistantCoverageAnswer(scope);
+  if (/monthly|aht|service level|\bsl\b|volume|forecast/.test(query)) return assistantMonthlyAnswer(scope);
+  if (/fail|issue|risk|problem|check|category/.test(query)) return assistantFailureAnswer(scope, query);
+  if (/pass|health|performance|best|worst|compare/.test(query)) return assistantPerformanceAnswer(scope);
+  if (/summary|overview|insight|status|how are/.test(query)) return assistantPortfolioSummary(scope);
+  return `I could not map that question to the RTM dataset. Try "Give me a portfolio summary", "Which client has the most failures?", "Show bot coverage", or "What are the rollout dates?"`;
+}
+
+function appendAssistantMessage(role, text) {
+  const messages = $("assistantMessages");
+  if (!messages) return;
+  const message = document.createElement("div");
+  message.className = `assistant-message ${role}`;
+  message.textContent = text;
+  messages.appendChild(message);
+  messages.scrollTop = messages.scrollHeight;
+}
+
+function askAssistant(question) {
+  const input = $("assistantInput");
+  const value = norm(question || input?.value);
+  if (!value) return;
+  appendAssistantMessage("user", value);
+  if (input) input.value = "";
+  window.setTimeout(() => appendAssistantMessage("bot", buildAssistantAnswer(value)), 120);
+}
+
+function initAssistant() {
+  if ($("assistantPanel")) return;
+  document.body.insertAdjacentHTML("beforeend", `
+    <button class="assistant-toggle" id="assistantToggle" type="button" aria-controls="assistantPanel" aria-expanded="false">Ask RTM</button>
+    <section class="assistant-panel" id="assistantPanel" aria-label="RTM data assistant" hidden>
+      <header class="assistant-head">
+        <div><strong>RTM Assistant</strong><span>Answers from loaded dashboard data</span></div>
+        <button id="assistantClose" type="button" aria-label="Close assistant">X</button>
+      </header>
+      <div class="assistant-messages" id="assistantMessages" aria-live="polite"></div>
+      <div class="assistant-prompts" aria-label="Suggested questions">
+        <button type="button" data-assistant-question="Give me a portfolio summary">Portfolio summary</button>
+        <button type="button" data-assistant-question="Which client has the most failures?">Failure leaders</button>
+        <button type="button" data-assistant-question="Show bot coverage">Bot coverage</button>
+      </div>
+      <form class="assistant-form" id="assistantForm">
+        <input id="assistantInput" type="text" autocomplete="off" placeholder="Ask about alerts, clients, or rollout" aria-label="Ask the RTM assistant" />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+  `);
+  const setOpen = (open) => {
+    $("assistantPanel").hidden = !open;
+    $("assistantToggle").setAttribute("aria-expanded", String(open));
+    if (open) $("assistantInput").focus();
+  };
+  $("assistantToggle").addEventListener("click", () => setOpen($("assistantPanel").hidden));
+  $("assistantClose").addEventListener("click", () => setOpen(false));
+  $("assistantForm").addEventListener("submit", (event) => {
+    event.preventDefault();
+    askAssistant();
+  });
+  document.querySelectorAll("[data-assistant-question]").forEach((button) => button.addEventListener("click", () => askAssistant(button.dataset.assistantQuestion)));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !$("assistantPanel").hidden) setOpen(false);
+  });
+  appendAssistantMessage("bot", "Ask me for portfolio insights, client performance, failure drivers, bot coverage, rollout dates, or monthly KPIs.");
+}
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
@@ -542,4 +721,5 @@ document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
   });
 });
 
+initAssistant();
 loadInitialData();
