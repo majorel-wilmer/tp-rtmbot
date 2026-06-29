@@ -27,7 +27,10 @@ Vercel project settings:
 - Framework Preset: Other
 - Root Directory: the folder containing `vercel.json` and `api/`
 - Build Command: leave blank
-- Output Directory: leave blank; `vercel.json` uses the project root
+- Output Directory: leave blank
+
+Do not set the Output Directory to `.`. Vercel must auto-discover the Python
+functions from the root-level `api/` directory.
 
 Environment variables:
 
