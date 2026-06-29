@@ -304,7 +304,8 @@ class Handler(SimpleHTTPRequestHandler):
             filename_match = re.search(rb'filename="([^"]+)"', header)
             filename = unquote(filename_match.group(1).decode("utf-8", "ignore")) if filename_match else "upload.xlsx"
             filename = Path(filename).name
-            payload = payload.rstrip(b"\r\n-")
+            if payload.endswith(b"\r\n"):
+                payload = payload[:-2]
             if Path(filename).suffix.lower() not in {".xlsx", ".xls"}:
                 continue
             parsed = parse_workbook(payload, filename)

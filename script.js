@@ -134,10 +134,17 @@ async function handleFiles(files) {
   let next;
   try {
     const response = await fetch("/upload", { method: "POST", body: form });
-    if (!response.ok) throw new Error(`Upload failed with HTTP ${response.status}`);
+    if (response.status === 401) {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (!response.ok) {
+      const detail = await response.json().catch(() => ({}));
+      throw new Error(detail.error || `HTTP ${response.status}`);
+    }
     next = await response.json();
   } catch (error) {
-    setText("uploadStatus", `Upload failed. Start the local Python server and try again. ${error.message}`);
+    setText("uploadStatus", `Upload failed: ${error.message}`);
     return;
   }
   state = {
