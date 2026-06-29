@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sign In | VCO - RTM Bot</title>
+    <link rel="stylesheet" href="styles.css?v=20260629-3" />
+  </head>
+  <body class="auth-body">
+    <main class="auth-card">
+      <div class="brand auth-brand">
+        <div class="brand-mark">RTM</div>
+        <div>
+          <h1>VCO - RTM Bot</h1>
+          <p>Data Management</p>
+        </div>
+      </div>
+      <form class="auth-form" method="post" action="/login">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus />
+        <p id="loginError" class="login-error" hidden>Incorrect password.</p>
+        <button type="submit">Sign in</button>
+      </form>
+      <a class="auth-back" href="index.html">Back to overview</a>
+    </main>
+    <script>
+      document.getElementById("loginError").hidden = !new URLSearchParams(window.location.search).has("error");
+    </script>
+  </body>
+</html>

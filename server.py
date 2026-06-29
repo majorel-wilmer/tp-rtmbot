@@ -2,14 +2,23 @@ from __future__ import annotations
 
 import json
 import io
+import hmac
+import os
 import re
+import secrets
+import time
+from http.cookies import SimpleCookie
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import parse_qs, unquote, urlparse
 
 import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
+PASSWORD = os.environ.get("VCO_RTM_PASSWORD", "VCO-RTM-2026")
+SESSION_COOKIE = "vco_rtm_session"
+SESSION_TTL_SECONDS = 8 * 60 * 60
+SESSIONS: dict[str, float] = {}
 
 
 def norm(value) -> str:
@@ -185,7 +194,7 @@ def parse_workbook(payload: bytes, file_name: str) -> dict:
             result["batches"].extend(parse_batches(rows))
         elif "alert" in lower or "alertname" in headers or "overallstatus" in headers:
             result["alerts"].extend(parse_alerts(rows))
-        elif "impact" in lower or "table" in lower or "beforebot" in headers or "coveredbyrtmbot" in headers:
+        elif lower.strip() == "bot impact" or "coveredbyrtmbot" in headers:
             result["impact"].extend(parse_impact(rows))
         elif "monthly" in lower or "kpi" in lower or "adds" in lower or "aht" in headers:
             result["monthly"].extend(parse_monthly(rows))
@@ -193,8 +202,48 @@ def parse_workbook(payload: bytes, file_name: str) -> dict:
 
 
 class Handler(SimpleHTTPRequestHandler):
+    def end_headers(self):
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        super().end_headers()
+
+    def session_token(self) -> str:
+        cookie = SimpleCookie()
+        try:
+            cookie.load(self.headers.get("Cookie", ""))
+        except Exception:
+            return ""
+        morsel = cookie.get(SESSION_COOKIE)
+        return morsel.value if morsel else ""
+
+    def is_authenticated(self) -> bool:
+        token = self.session_token()
+        expires_at = SESSIONS.get(token, 0)
+        if expires_at <= time.time():
+            if token:
+                SESSIONS.pop(token, None)
+            return False
+        return True
+
+    def redirect(self, location: str, cookie: str = ""):
+        self.send_response(303)
+        self.send_header("Location", location)
+        if cookie:
+            self.send_header("Set-Cookie", cookie)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
-        if self.path == "/data":
+        path = urlparse(self.path).path
+        protected_paths = {
+            "/data-management.html",
+            "/outputs/VCO_RTM_Bot_Upload_Template.xlsx",
+        }
+        if path in protected_paths and not self.is_authenticated():
+            self.redirect("/login.html")
+            return
+        if path == "/data":
             data_path = ROOT / "data" / "actual_data.json"
             if not data_path.exists():
                 self.send_error(404, "Actual data has not been generated")
@@ -202,7 +251,6 @@ class Handler(SimpleHTTPRequestHandler):
             data = data_path.read_bytes()
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
-            self.send_header("Cache-Control", "no-store")
             self.send_header("Content-Length", str(len(data)))
             self.end_headers()
             self.wfile.write(data)
@@ -210,8 +258,34 @@ class Handler(SimpleHTTPRequestHandler):
         super().do_GET()
 
     def do_POST(self):
-        if self.path != "/upload":
+        path = urlparse(self.path).path
+        if path == "/login":
+            length = int(self.headers.get("Content-Length", "0"))
+            form = parse_qs(self.rfile.read(length).decode("utf-8", "ignore"))
+            supplied = form.get("password", [""])[0]
+            if hmac.compare_digest(supplied, PASSWORD):
+                token = secrets.token_urlsafe(32)
+                SESSIONS[token] = time.time() + SESSION_TTL_SECONDS
+                cookie = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={SESSION_TTL_SECONDS}"
+                self.redirect("/data-management.html", cookie)
+            else:
+                self.redirect("/login.html?error=1")
+            return
+        if path == "/logout":
+            SESSIONS.pop(self.session_token(), None)
+            cookie = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+            self.redirect("/login.html", cookie)
+            return
+        if path != "/upload":
             self.send_error(404)
+            return
+        if not self.is_authenticated():
+            data = json.dumps({"error": "Authentication required"}).encode("utf-8")
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
             return
         content_type = self.headers.get("Content-Type", "")
         boundary_match = re.search(r"boundary=(.+)", content_type)
@@ -247,4 +321,5 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = 8027
     print(f"Serving VCO - RTM Bot dashboard at http://127.0.0.1:{port}/index.html")
+    print("Data Management is password protected. Set VCO_RTM_PASSWORD to override the default password.")
     ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

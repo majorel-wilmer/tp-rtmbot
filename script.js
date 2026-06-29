@@ -1,3 +1,5 @@
+const DATA_SCHEMA_VERSION = 2;
+
 const sampleData = {
   batches: [
     { batch: "Batch 1", liveWeek: "Week of March 16", liveDate: "2026-03-16", notes: "" },
@@ -38,23 +40,65 @@ const sampleData = {
 
 let state = structuredClone(sampleData);
 
+const emptyData = () => ({
+  batches: [],
+  batchClients: [],
+  alerts: [],
+  impact: [],
+  monthly: [],
+  sourceFiles: [],
+});
+
 const $ = (id) => document.getElementById(id);
 const norm = (value) => String(value ?? "").trim();
 const percent = (value) => `${Math.round((value || 0) * 100)}%`;
+const getValue = (id) => $(id)?.value || "";
+const setText = (id, value) => {
+  if ($(id)) $(id).textContent = value;
+};
+const cssVar = (name) => getComputedStyle(document.body).getPropertyValue(name).trim();
+
+function applyTheme(theme, shouldRender = false) {
+  document.body.dataset.theme = theme;
+  document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+    button.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    button.setAttribute("aria-label", `Switch to ${theme === "dark" ? "light" : "dark"} mode`);
+  });
+  if (shouldRender) render();
+}
+
+applyTheme(localStorage.getItem("vcoRtmTheme") === "dark" ? "dark" : "light");
 
 function loadState() {
   try {
-    return JSON.parse(localStorage.getItem("vcoRtmDashboardData")) || structuredClone(sampleData);
+    const saved = JSON.parse(localStorage.getItem("vcoRtmDashboardData"));
+    return saved?._schemaVersion === DATA_SCHEMA_VERSION ? saved : structuredClone(sampleData);
   } catch {
     return structuredClone(sampleData);
   }
 }
 
 async function loadInitialData() {
+  if (localStorage.getItem("vcoRtmDashboardCleared") === "true") {
+    state = emptyData();
+    saveState();
+    setText("uploadStatus", "All data is cleared. Upload a new workbook to begin.");
+    populateFilters();
+    render();
+    return;
+  }
+  const savedUpload = loadState();
+  if (savedUpload?._schemaVersion === DATA_SCHEMA_VERSION) {
+    state = savedUpload;
+    setText("uploadStatus", `Loaded saved upload: ${(state.sourceFiles || []).join(", ")}`);
+    populateFilters();
+    render();
+    return;
+  }
   if (window.VCO_RTM_ACTUAL_DATA) {
-    state = window.VCO_RTM_ACTUAL_DATA;
+    state = { ...window.VCO_RTM_ACTUAL_DATA, _schemaVersion: DATA_SCHEMA_VERSION };
     localStorage.setItem("vcoRtmDashboardSeed", JSON.stringify(state));
-    $("uploadStatus").textContent = `Loaded actual data: ${(state.sourceFiles || []).join(", ")}`;
+    setText("uploadStatus", `Loaded actual data: ${(state.sourceFiles || []).join(", ")}`);
     populateFilters();
     render();
     return;
@@ -62,16 +106,16 @@ async function loadInitialData() {
   try {
     const response = await fetch("/data", { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    state = await response.json();
+    state = { ...(await response.json()), _schemaVersion: DATA_SCHEMA_VERSION };
     localStorage.setItem("vcoRtmDashboardSeed", JSON.stringify(state));
-    $("uploadStatus").textContent = `Loaded actual data: ${(state.sourceFiles || []).join(", ")}`;
+    setText("uploadStatus", `Loaded actual data: ${(state.sourceFiles || []).join(", ")}`);
   } catch {
     try {
       state = JSON.parse(localStorage.getItem("vcoRtmDashboardSeed")) || loadState();
-      $("uploadStatus").textContent = "Using last loaded local data.";
+      setText("uploadStatus", "Using last loaded local data.");
     } catch {
       state = loadState();
-      $("uploadStatus").textContent = "Using starter sample data.";
+      setText("uploadStatus", "Using starter sample data.");
     }
   }
   populateFilters();
@@ -84,7 +128,7 @@ function saveState() {
 
 async function handleFiles(files) {
   if (!files.length) return;
-  $("uploadStatus").textContent = "Reading uploaded workbook(s)...";
+  setText("uploadStatus", "Reading uploaded workbook(s)...");
   const form = new FormData();
   files.forEach((file) => form.append("files", file, file.name));
   let next;
@@ -93,10 +137,11 @@ async function handleFiles(files) {
     if (!response.ok) throw new Error(`Upload failed with HTTP ${response.status}`);
     next = await response.json();
   } catch (error) {
-    $("uploadStatus").textContent = `Upload failed. Start the local Python server and try again. ${error.message}`;
+    setText("uploadStatus", `Upload failed. Start the local Python server and try again. ${error.message}`);
     return;
   }
   state = {
+    _schemaVersion: DATA_SCHEMA_VERSION,
     batches: next.batches.length ? next.batches : state.batches,
     batchClients: next.batchClients?.length ? next.batchClients : state.batchClients,
     alerts: next.alerts.length ? next.alerts : state.alerts,
@@ -104,20 +149,21 @@ async function handleFiles(files) {
     monthly: next.monthly.length ? next.monthly : state.monthly,
     sourceFiles: next.sourceFiles,
   };
+  localStorage.removeItem("vcoRtmDashboardCleared");
   saveState();
-  $("uploadStatus").textContent = `Loaded ${next.sourceFiles.length} file(s): ${next.sourceFiles.join(", ")}`;
+  setText("uploadStatus", `Loaded ${next.sourceFiles.length} file(s): ${next.sourceFiles.join(", ")}`);
   populateFilters();
   render();
 }
 
 function selectedRows() {
-  const client = $("clientFilter").value;
-  const status = $("statusFilter").value;
+  const client = getValue("clientFilter");
+  const status = getValue("statusFilter");
   return state.alerts.filter((row) => (!client || row.client === client) && (!status || row.overallStatus === status));
 }
 
 function visibleImpact() {
-  const client = $("clientFilter").value;
+  const client = getValue("clientFilter");
   return state.impact.filter((row) => !client || row.client === client);
 }
 
@@ -143,20 +189,20 @@ function canvasSetup(id) {
 }
 
 function drawEmpty(ctx, width, height, message = "No data") {
-  ctx.fillStyle = "#64748b";
+  ctx.fillStyle = cssVar("--muted");
   ctx.textAlign = "center";
   ctx.fillText(message, width / 2, height / 2);
 }
 
-function drawBarChart(id, labels, values, color = "#2563eb", horizontal = false) {
+function drawBarChart(id, labels, values, color = "#2563eb", horizontal = false, valueSuffix = "") {
   const { ctx, width, height } = canvasSetup(id);
   if (!labels.length) return drawEmpty(ctx, width, height);
   const max = Math.max(...values, 1);
   const left = 44;
   const top = 18;
-  const chartW = width - 70;
+  const chartW = horizontal ? width - left - 70 : width - 70;
   const chartH = height - 64;
-  ctx.strokeStyle = "#d7dde6";
+  ctx.strokeStyle = cssVar("--canvas-grid");
   ctx.beginPath();
   ctx.moveTo(left, top);
   ctx.lineTo(left, top + chartH);
@@ -168,19 +214,19 @@ function drawBarChart(id, labels, values, color = "#2563eb", horizontal = false)
     ctx.fillStyle = color;
     if (horizontal) {
       ctx.fillRect(left, top + i * slot + 8, bar, Math.max(12, slot - 14));
-      ctx.fillStyle = "#111827";
+      ctx.fillStyle = cssVar("--ink");
       ctx.textAlign = "left";
       ctx.fillText(String(label).slice(0, 18), left + 4, top + i * slot + 20);
       ctx.textAlign = "right";
-      ctx.fillText(values[i], left + bar + 28, top + i * slot + 20);
+      ctx.fillText(`${values[i]}${valueSuffix}`, width - 8, top + i * slot + 20);
     } else {
       const barW = chartW / labels.length - 12;
       const x = left + i * (chartW / labels.length) + 6;
       const y = top + chartH - bar;
       ctx.fillRect(x, y, Math.max(14, barW), bar);
-      ctx.fillStyle = "#111827";
+      ctx.fillStyle = cssVar("--ink");
       ctx.textAlign = "center";
-      ctx.fillText(values[i], x + barW / 2, y - 4);
+      ctx.fillText(`${values[i]}${valueSuffix}`, x + barW / 2, y - 4);
       ctx.save();
       ctx.translate(x + barW / 2, top + chartH + 14);
       ctx.rotate(-0.35);
@@ -197,7 +243,7 @@ function drawLineChart(id, labels, values) {
   const top = 18;
   const chartW = width - 70;
   const chartH = height - 64;
-  ctx.strokeStyle = "#d7dde6";
+  ctx.strokeStyle = cssVar("--canvas-grid");
   ctx.beginPath();
   ctx.moveTo(left, top);
   ctx.lineTo(left, top + chartH);
@@ -220,7 +266,7 @@ function drawLineChart(id, labels, values) {
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
-    ctx.fillStyle = "#111827";
+    ctx.fillStyle = cssVar("--ink");
     ctx.textAlign = "center";
     ctx.fillText(`${value}%`, x, y - 9);
     ctx.fillText(String(labels[i]).slice(5), x, top + chartH + 18);
@@ -245,11 +291,11 @@ function drawDoughnut(id, labels, values) {
     ctx.fill();
     start += angle;
   });
-  ctx.fillStyle = "#fff";
+  ctx.fillStyle = cssVar("--canvas-hole");
   ctx.beginPath();
   ctx.arc(cx, cy, 44, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#111827";
+  ctx.fillStyle = cssVar("--ink");
   ctx.textAlign = "center";
   ctx.font = "700 22px Segoe UI, Arial";
   ctx.fillText(String(total), cx, cy + 7);
@@ -259,7 +305,7 @@ function drawDoughnut(id, labels, values) {
     const y = 220 + Math.floor(i / 2) * 22;
     ctx.fillStyle = colors[i % colors.length];
     ctx.fillRect(x, y - 10, 10, 10);
-    ctx.fillStyle = "#111827";
+    ctx.fillStyle = cssVar("--ink");
     ctx.textAlign = "left";
     ctx.fillText(`${label}: ${values[i]}`, x + 16, y);
   });
@@ -268,11 +314,12 @@ function drawDoughnut(id, labels, values) {
 function populateFilters() {
   const clients = [...new Set([...state.alerts, ...state.impact, ...state.monthly].map((r) => r.client).filter(Boolean))].sort();
   const batches = [...new Set(state.batches.map((r) => r.batch).filter(Boolean))];
-  $("clientFilter").innerHTML = `<option value="">All clients</option>${clients.map((c) => `<option>${escapeHtml(c)}</option>`).join("")}`;
-  $("batchFilter").innerHTML = `<option value="">All batches</option>${batches.map((b) => `<option>${escapeHtml(b)}</option>`).join("")}`;
+  if ($("clientFilter")) $("clientFilter").innerHTML = `<option value="">All clients</option>${clients.map((c) => `<option>${escapeHtml(c)}</option>`).join("")}`;
+  if ($("batchFilter")) $("batchFilter").innerHTML = `<option value="">All batches</option>${batches.map((b) => `<option>${escapeHtml(b)}</option>`).join("")}`;
 }
 
 function renderKpis(rows) {
+  if (!$("kpiGrid")) return;
   const clients = new Set(rows.map((r) => r.client)).size;
   const failRows = rows.filter((r) => r.overallStatus === "FAIL").length;
   const passRate = rows.length ? rows.filter((r) => r.overallStatus === "PASS").length / rows.length : 0;
@@ -289,10 +336,10 @@ function renderKpis(rows) {
 
 function renderCharts(rows) {
   const statusCounts = countBy(rows, (r) => r.overallStatus);
-  drawDoughnut("statusChart", Object.keys(statusCounts), Object.values(statusCounts));
+  if ($("statusChart")) drawDoughnut("statusChart", Object.keys(statusCounts), Object.values(statusCounts));
 
   const categoryFails = countBy(rows.filter((r) => r.overallStatus !== "PASS"), (r) => r.category);
-  drawBarChart("categoryChart", Object.keys(categoryFails), Object.values(categoryFails), "#dc2626", true);
+  if ($("categoryChart")) drawBarChart("categoryChart", Object.keys(categoryFails), Object.values(categoryFails), "#dc2626", true);
 
   const byDate = {};
   rows.forEach((r) => {
@@ -302,17 +349,69 @@ function renderCharts(rows) {
     if (r.overallStatus === "PASS") byDate[d].pass += 1;
   });
   const dates = Object.keys(byDate).sort();
-  drawLineChart("trendChart", dates, dates.map((d) => Math.round((byDate[d].pass / byDate[d].total) * 100)));
+  if ($("trendChart")) drawLineChart("trendChart", dates, dates.map((d) => Math.round((byDate[d].pass / byDate[d].total) * 100)));
 
   const coverage = countBy(visibleImpact(), (r) => /partial/i.test(r.covered) ? "Partial" : /yes/i.test(r.covered) ? "Covered" : /no/i.test(r.covered) ? "Not Covered" : "Unknown");
-  drawBarChart("coverageChart", Object.keys(coverage), Object.values(coverage), "#0f766e");
+  if ($("coverageChart")) drawBarChart("coverageChart", Object.keys(coverage), Object.values(coverage), "#0f766e");
 
-  const monthlyRows = state.monthly.filter((r) => !$("clientFilter").value || r.client === $("clientFilter").value);
-  drawBarChart("monthlyChart", monthlyRows.map((r) => `${r.client} ${r.month}`), monthlyRows.map((r) => Math.round(r.sl * 100)), "#0f766e");
+  const clientStats = {};
+  rows.forEach((row) => {
+    const client = row.client || "Unmapped";
+    clientStats[client] ||= { total: 0, pass: 0 };
+    clientStats[client].total += 1;
+    if (row.overallStatus === "PASS") clientStats[client].pass += 1;
+  });
+  const clientPassRates = Object.entries(clientStats)
+    .map(([client, stats]) => [client, Math.round((stats.pass / stats.total) * 100)])
+    .sort((a, b) => b[1] - a[1]);
+  if ($("clientPassChart")) {
+    drawBarChart("clientPassChart", clientPassRates.map(([client]) => client), clientPassRates.map(([, rate]) => rate), "#2563eb", true, "%");
+  }
+
+  const clientVolumes = Object.entries(countBy(rows, (row) => row.client))
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  if ($("clientVolumeChart")) {
+    drawBarChart("clientVolumeChart", clientVolumes.map(([client]) => client), clientVolumes.map(([, total]) => total), "#7c3aed", true);
+  }
+
+  const failedChecks = {};
+  rows.forEach((row) => {
+    Object.entries(row.checks || {}).forEach(([check, result]) => {
+      const checkLabel = check.replace(/\s+/g, " ").trim();
+      if (result === "FAIL" && !/overall status|expected threshold/i.test(checkLabel)) {
+        failedChecks[checkLabel] = (failedChecks[checkLabel] || 0) + 1;
+      }
+    });
+  });
+  const topFailedChecks = Object.entries(failedChecks)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8);
+  if ($("failedChecksChart")) {
+    drawBarChart("failedChecksChart", topFailedChecks.map(([check]) => check), topFailedChecks.map(([, total]) => total), "#dc2626", true);
+  }
+
+  const coverageByClient = {};
+  visibleImpact().forEach((row) => {
+    const client = (row.client || "Unmapped").split(" - ")[0];
+    coverageByClient[client] ||= { total: 0, covered: 0 };
+    coverageByClient[client].total += 1;
+    if (/yes|partial/i.test(row.covered)) coverageByClient[client].covered += 1;
+  });
+  const clientCoverageRates = Object.entries(coverageByClient)
+    .map(([client, stats]) => [client, Math.round((stats.covered / stats.total) * 100)])
+    .sort((a, b) => b[1] - a[1]);
+  if ($("clientCoverageChart")) {
+    drawBarChart("clientCoverageChart", clientCoverageRates.map(([client]) => client), clientCoverageRates.map(([, rate]) => rate), "#0f766e", true, "%");
+  }
+
+  const monthlyRows = state.monthly.filter((r) => !getValue("clientFilter") || r.client === getValue("clientFilter"));
+  if ($("monthlyChart")) drawBarChart("monthlyChart", monthlyRows.map((r) => `${r.client} ${r.month}`), monthlyRows.map((r) => Math.round(r.sl * 100)), "#0f766e");
 }
 
 function renderTimeline() {
-  const selectedBatch = $("batchFilter").value;
+  if (!$("batchTimeline") || !$("batchClientRows")) return;
+  const selectedBatch = getValue("batchFilter");
   const batches = state.batches.filter((b) => !selectedBatch || b.batch === selectedBatch);
   $("batchTimeline").innerHTML = batches.map((b) => `
     <article class="batch-card">
@@ -335,6 +434,7 @@ function renderTimeline() {
 }
 
 function renderAnalysis(rows) {
+  if (!$("analysisList")) return;
   const failRows = rows.filter((r) => r.overallStatus === "FAIL");
   const passRate = rows.length ? rows.filter((r) => r.overallStatus === "PASS").length / rows.length : 0;
   const topCategory = Object.entries(countBy(failRows, (r) => r.category)).sort((a, b) => b[1] - a[1])[0];
@@ -360,6 +460,7 @@ function renderAnalysis(rows) {
 }
 
 function renderTable(rows) {
+  if (!$("alertRows")) return;
   $("rowCount").textContent = `${rows.length} row(s)`;
   $("alertRows").innerHTML = rows.map((r) => {
     const failChecks = Object.entries(r.checks || {}).filter(([, v]) => v === "FAIL").map(([k]) => k).join("; ");
@@ -378,7 +479,7 @@ function renderTable(rows) {
 
 function render() {
   const rows = selectedRows();
-  $("dataSubtitle").textContent = `Source: ${(state.sourceFiles || []).join(", ") || "Starter sample"}`;
+  setText("dataSubtitle", `Source: ${(state.sourceFiles || []).join(", ") || "No data loaded"}`);
   renderKpis(rows);
   renderCharts(rows);
   renderTimeline();
@@ -409,17 +510,29 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-$("fileInput").addEventListener("change", (event) => handleFiles([...event.target.files]));
-$("clearButton").addEventListener("click", () => {
+$("fileInput")?.addEventListener("change", (event) => handleFiles([...event.target.files]));
+$("clearButton")?.addEventListener("click", () => {
   localStorage.removeItem("vcoRtmDashboardData");
-  state = JSON.parse(localStorage.getItem("vcoRtmDashboardSeed") || "null") || structuredClone(sampleData);
-  $("uploadStatus").textContent = state.sourceFiles?.length ? `Reloaded actual data: ${state.sourceFiles.join(", ")}` : "Using starter sample data.";
+  localStorage.removeItem("vcoRtmDashboardSeed");
+  localStorage.setItem("vcoRtmDashboardCleared", "true");
+  state = emptyData();
+  saveState();
+  if ($("fileInput")) $("fileInput").value = "";
+  if ($("statusFilter")) $("statusFilter").value = "";
+  setText("uploadStatus", "All data is cleared. Upload a new workbook to begin.");
   populateFilters();
   render();
 });
-$("clientFilter").addEventListener("change", render);
-$("batchFilter").addEventListener("change", render);
-$("statusFilter").addEventListener("change", render);
-$("exportButton").addEventListener("click", exportCsv);
+$("clientFilter")?.addEventListener("change", render);
+$("batchFilter")?.addEventListener("change", render);
+$("statusFilter")?.addEventListener("change", render);
+$("exportButton")?.addEventListener("click", exportCsv);
+document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    const next = document.body.dataset.theme === "dark" ? "light" : "dark";
+    localStorage.setItem("vcoRtmTheme", next);
+    applyTheme(next, true);
+  });
+});
 
 loadInitialData();

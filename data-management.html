@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Data Management | VCO - RTM Bot</title>
+    <link rel="stylesheet" href="styles.css?v=20260629-3" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">RTM</div>
+        <div>
+          <h1>VCO - RTM Bot</h1>
+          <p>Alert health, bot impact, and rollout readiness</p>
+        </div>
+      </div>
+
+      <nav class="page-nav" aria-label="Dashboard pages">
+        <a href="index.html">Overview</a>
+        <a href="rollout.html">Rollout &amp; Analysis</a>
+        <a href="alerts.html">Alert Queue</a>
+        <a class="active" href="data-management.html" aria-current="page">Data Management</a>
+      </nav>
+
+      <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
+      <form class="logout-form" method="post" action="/logout">
+        <button class="logout-button" type="submit">Sign out</button>
+      </form>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>Data Management</h1>
+          <p id="dataSubtitle">Upload and maintain dashboard data</p>
+        </div>
+      </header>
+
+      <div class="data-management-layout">
+        <section class="panel data-management-panel">
+          <div class="panel-head">
+            <h2>Upload Files</h2>
+            <span>Excel workbooks</span>
+          </div>
+          <p>Upload the template, alert health check workbook, or bot impact workbook. Multiple files can be loaded together.</p>
+          <label class="upload-drop" for="fileInput">
+            <span>Choose Excel files</span>
+            <small>.xlsx, .xls</small>
+          </label>
+          <input id="fileInput" type="file" accept=".xlsx,.xls" multiple />
+          <div class="data-actions">
+            <a class="template-link" href="outputs/VCO_RTM_Bot_Upload_Template.xlsx" download>Download Upload Template</a>
+            <button id="clearButton" type="button">Reset Data</button>
+          </div>
+          <div id="uploadStatus" class="upload-status">Loading dashboard data...</div>
+        </section>
+      </div>
+    </main>
+
+    <script src="data/actual_data.js"></script>
+    <script src="script.js?v=20260629-6"></script>
+  </body>
+</html>

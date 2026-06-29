@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rollout &amp; Analysis | VCO - RTM Bot</title>
+    <link rel="stylesheet" href="styles.css?v=20260629-2" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">RTM</div>
+        <div>
+          <h1>VCO - RTM Bot</h1>
+          <p>Alert health, bot impact, and rollout readiness</p>
+        </div>
+      </div>
+
+      <nav class="page-nav" aria-label="Dashboard pages">
+        <a href="index.html">Overview</a>
+        <a class="active" href="rollout.html" aria-current="page">Rollout &amp; Analysis</a>
+        <a href="alerts.html">Alert Queue</a>
+        <a href="data-management.html">Data Management</a>
+      </nav>
+
+      <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
+
+      <section class="filters">
+        <h2>Filters</h2>
+        <label>
+          Client
+          <select id="clientFilter"></select>
+        </label>
+        <label>
+          Batch
+          <select id="batchFilter"></select>
+        </label>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>Rollout &amp; Analysis</h1>
+          <p id="dataSubtitle">Live-week readiness and operating impact</p>
+        </div>
+        <a class="header-link" href="index.html">Back to overview</a>
+      </header>
+
+      <section class="detail-stack">
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Batch Live Weeks</h2>
+            <span>Rollout schedule</span>
+          </div>
+          <div id="batchTimeline" class="timeline"></div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Batch Client Mapping</h2>
+            <span id="batchClientCount"></span>
+          </div>
+          <div class="table-wrap compact-table">
+            <table>
+              <thead>
+                <tr><th>Batch</th><th>Client</th><th>Tool</th><th>Live Week</th></tr>
+              </thead>
+              <tbody id="batchClientRows"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <section class="analysis-grid">
+          <article class="panel">
+            <div class="panel-head">
+              <h2>Analysis</h2>
+              <span>Auto-generated from visible data</span>
+            </div>
+            <div id="analysisList" class="analysis-list"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-head">
+              <h2>Monthly KPI</h2>
+              <span>SL, AHT, and volume</span>
+            </div>
+            <canvas id="monthlyChart"></canvas>
+          </article>
+        </section>
+      </section>
+    </main>
+
+    <script src="data/actual_data.js"></script>
+    <script src="script.js?v=20260629-6"></script>
+  </body>
+</html>

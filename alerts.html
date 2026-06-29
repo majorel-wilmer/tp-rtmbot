@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Alert Queue | VCO - RTM Bot</title>
+    <link rel="stylesheet" href="styles.css?v=20260629-2" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">RTM</div>
+        <div>
+          <h1>VCO - RTM Bot</h1>
+          <p>Alert health, bot impact, and rollout readiness</p>
+        </div>
+      </div>
+
+      <nav class="page-nav" aria-label="Dashboard pages">
+        <a href="index.html">Overview</a>
+        <a href="rollout.html">Rollout &amp; Analysis</a>
+        <a class="active" href="alerts.html" aria-current="page">Alert Queue</a>
+        <a href="data-management.html">Data Management</a>
+      </nav>
+
+      <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
+
+      <section class="filters">
+        <h2>Filters</h2>
+        <label>
+          Client
+          <select id="clientFilter"></select>
+        </label>
+        <label>
+          Status
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="PASS">PASS</option>
+            <option value="FAIL">FAIL</option>
+            <option value="Needs Review">Needs Review</option>
+          </select>
+        </label>
+      </section>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1>Alert Queue</h1>
+          <p id="dataSubtitle">Alert-level validation and findings</p>
+        </div>
+        <button id="exportButton" type="button">Export Alert CSV</button>
+      </header>
+
+      <section class="panel table-panel alert-page-panel">
+        <div class="panel-head">
+          <h2>Alert Queue</h2>
+          <span id="rowCount"></span>
+        </div>
+        <div class="table-wrap alert-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Client</th><th>Audit Date</th><th>Category</th><th>Alert</th>
+                <th>Status</th><th>Fail Checks</th><th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="alertRows"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script src="data/actual_data.js"></script>
+    <script src="script.js?v=20260629-6"></script>
+  </body>
+</html>

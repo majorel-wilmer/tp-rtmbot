@@ -80,7 +80,7 @@ styleTitle(
   "VCO - RTM Bot Upload Template",
   "Use this file as the standard upload format for the local VCO - RTM Bot dashboard."
 );
-cover.getRange("A4:B10").values = [
+cover.getRange("A4:B11").values = [
   ["Sheet", "Purpose"],
   ["Batch Schedule", "Maps rollout batches to live weeks. Matches the Batch 1 / Week of March 16 layout."],
   ["Batch Client Mapping", "Maps each batch to client, tool, and live week. This powers the Batch Client Mapping panel."],
@@ -173,11 +173,10 @@ alerts.getRange("X4:X250").format.wrapText = true;
 alerts.freezePanes.freezeRows(3);
 alerts.freezePanes.freezeColumns(1);
 
-const passFailRange = "Lookup Lists!$A$2:$A$5";
+const passFailValues = ["PASS", "FAIL", "N/A", "Not Checked"];
 for (const col of ["H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W"]) {
-  alerts.getRange(`${col}4:${col}250`).dataValidation = { rule: { type: "list", formula1: passFailRange } };
+  alerts.getRange(`${col}4:${col}250`).dataValidation = { rule: { type: "list", values: passFailValues } };
 }
-alerts.getRange("W4:W250").dataValidation = { rule: { type: "list", formula1: passFailRange } };
 
 styleTitle(impact, "A1:H1", "RTM Bot Impact");
 impact.getRange("A3:H7").values = [
@@ -192,7 +191,9 @@ styleTable(impact, "A3:H200", "BotImpact");
 impact.getRange("A:H").format.columnWidth = 22;
 impact.getRange("H:H").format.columnWidth = 48;
 impact.getRange("B:H").format.wrapText = true;
-impact.getRange("C4:C200").dataValidation = { rule: { type: "list", formula1: "Lookup Lists!$B$2:$B$5" } };
+impact.getRange("C4:C200").dataValidation = {
+  rule: { type: "list", values: ["Yes", "Yes - Partial", "No", "Unknown"] },
+};
 impact.freezePanes.freezeRows(3);
 
 styleTitle(monthly, "A1:L1", "Monthly KPI and Bot Analysis");

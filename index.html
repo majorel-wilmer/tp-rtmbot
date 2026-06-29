@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VCO - RTM Bot Dashboard</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260629-2" />
   </head>
   <body>
     <aside class="sidebar">
@@ -16,18 +16,14 @@
         </div>
       </div>
 
-      <section class="upload-panel">
-        <h2>Upload Files</h2>
-        <p>Upload the template, the alert health check workbook, or the bot impact workbook. Multiple files can be loaded together.</p>
-        <label class="upload-drop" for="fileInput">
-          <span>Choose Excel files</span>
-          <small>.xlsx, .xls, .csv</small>
-        </label>
-        <input id="fileInput" type="file" accept=".xlsx,.xls,.csv" multiple />
-        <a class="template-link" href="outputs/VCO_RTM_Bot_Upload_Template.xlsx" download>Download Upload Template</a>
-        <button id="clearButton" type="button">Reset Demo Data</button>
-        <div id="uploadStatus" class="upload-status">Using starter sample data.</div>
-      </section>
+      <nav class="page-nav" aria-label="Dashboard pages">
+        <a class="active" href="index.html" aria-current="page">Overview</a>
+        <a href="rollout.html">Rollout &amp; Analysis</a>
+        <a href="alerts.html">Alert Queue</a>
+        <a href="data-management.html">Data Management</a>
+      </nav>
+
+      <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
 
       <section class="filters">
         <h2>Filters</h2>
@@ -91,76 +87,38 @@
           </div>
           <canvas id="coverageChart"></canvas>
         </article>
-        <article class="panel wide">
-          <div class="panel-head">
-            <h2>Batch Live Weeks</h2>
-            <span>Rollout schedule</span>
-          </div>
-          <div id="batchTimeline" class="timeline"></div>
-        </article>
-        <article class="panel wide">
-          <div class="panel-head">
-            <h2>Batch Client Mapping</h2>
-            <span id="batchClientCount"></span>
-          </div>
-          <div class="table-wrap compact-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Batch</th>
-                  <th>Client</th>
-                  <th>Tool</th>
-                  <th>Live Week</th>
-                </tr>
-              </thead>
-              <tbody id="batchClientRows"></tbody>
-            </table>
-          </div>
-        </article>
-      </section>
-
-      <section class="analysis-grid">
         <article class="panel">
           <div class="panel-head">
-            <h2>Analysis</h2>
-            <span>Auto-generated from visible data</span>
+            <h2>Client Pass Rate</h2>
+            <span>Alert quality by client</span>
           </div>
-          <div id="analysisList" class="analysis-list"></div>
+          <canvas id="clientPassChart"></canvas>
         </article>
         <article class="panel">
           <div class="panel-head">
-            <h2>Monthly KPI</h2>
-            <span>SL, AHT, and volume</span>
+            <h2>Audit Volume by Client</h2>
+            <span>Highest visible workloads</span>
           </div>
-          <canvas id="monthlyChart"></canvas>
+          <canvas id="clientVolumeChart"></canvas>
         </article>
-      </section>
-
-      <section class="panel table-panel">
-        <div class="panel-head">
-          <h2>Alert Queue</h2>
-          <span id="rowCount"></span>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Audit Date</th>
-                <th>Category</th>
-                <th>Alert</th>
-                <th>Status</th>
-                <th>Fail Checks</th>
-                <th>Notes</th>
-              </tr>
-            </thead>
-            <tbody id="alertRows"></tbody>
-          </table>
-        </div>
+        <article class="panel">
+          <div class="panel-head">
+            <h2>Top Failed Checks</h2>
+            <span>Most frequent validation gaps</span>
+          </div>
+          <canvas id="failedChecksChart"></canvas>
+        </article>
+        <article class="panel wide">
+          <div class="panel-head">
+            <h2>Bot Coverage by Client</h2>
+            <span>Covered or partially covered tasks by parent client</span>
+          </div>
+          <canvas id="clientCoverageChart"></canvas>
+        </article>
       </section>
     </main>
 
     <script src="data/actual_data.js"></script>
-    <script src="script.js"></script>
+    <script src="script.js?v=20260629-6"></script>
   </body>
 </html>
