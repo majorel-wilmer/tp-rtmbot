@@ -514,35 +514,131 @@ function exportCsv() {
 }
 
 function assistantClients() {
-  return [...new Set([
+  const names = [
     ...(state.alerts || []).map((row) => row.client),
     ...(state.impact || []).map((row) => row.client),
     ...(state.monthly || []).map((row) => row.client),
     ...(state.batchClients || []).map((row) => row.client),
-  ].filter(Boolean))].sort((a, b) => b.length - a.length);
+  ].filter(Boolean);
+  const canonical = new Map();
+  names.forEach((name) => {
+    const key = assistantText(name);
+    if (!canonical.has(key)) canonical.set(key, norm(name));
+  });
+  return [...canonical.values()].sort((a, b) => b.length - a.length);
 }
 
-function findAssistantClient(question) {
-  const query = question.toLowerCase();
-  return assistantClients().find((client) => query.includes(client.toLowerCase())) || getValue("clientFilter") || "";
+function assistantText(value) {
+  return norm(value).toLowerCase().replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+function assistantContainsPhrase(text, phrase) {
+  return ` ${text} `.includes(` ${phrase} `);
+}
+
+function assistantEditDistance(left, right) {
+  const a = assistantText(left);
+  const b = assistantText(right);
+  const previous = Array.from({ length: b.length + 1 }, (_, index) => index);
+  for (let i = 1; i <= a.length; i += 1) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j += 1) {
+      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    previous.splice(0, previous.length, ...current);
+  }
+  return previous[b.length];
+}
+
+function assistantClientAliases() {
+  return [
+    ["aeo", "American Eagle Outfitter"], ["american eagle", "American Eagle Outfitter"], ["ameagle", "American Eagle Outfitter"],
+    ["cds", "CDS Global"], ["ceb pac", "Cebu Pacific"], ["cebu pac", "Cebu Pacific"],
+    ["electrify", "Electrify America"], ["epsom", "Epson"], ["keurig dr pepper", "Keurig"],
+    ["pdi", "PDI Technologies"], ["pdi tech", "PDI Technologies"],
+    ["philam", "Philam Life AIA"], ["aia", "Philam Life AIA"],
+    ["philcare", "Philcare Pharma Inc."], ["usbank", "US Bank"], ["u s bank", "US Bank"],
+    ["teemu", "Temu"], ["abot", "Abbott"],
+  ];
+}
+
+function assistantNgrams(text, minimum, maximum) {
+  const words = assistantText(text).split(" ").filter(Boolean);
+  const grams = [];
+  for (let size = minimum; size <= Math.min(maximum, words.length); size += 1) {
+    for (let index = 0; index <= words.length - size; index += 1) grams.push(words.slice(index, index + size).join(" "));
+  }
+  return grams;
+}
+
+function resolveAssistantClient(question) {
+  const query = assistantText(question);
+  const clients = assistantClients();
+  const exact = clients.find((client) => assistantContainsPhrase(query, assistantText(client)));
+  if (exact) return { client: exact, correction: "", suggestion: "" };
+
+  const alias = assistantClientAliases().find(([name, target]) => clients.some((client) => assistantText(client) === assistantText(target)) && assistantContainsPhrase(query, assistantText(name)));
+  if (alias) {
+    const client = clients.find((item) => assistantText(item) === assistantText(alias[1]));
+    return { client, correction: `I mapped "${alias[0]}" to ${client}`, suggestion: "" };
+  }
+
+  let closest = null;
+  const fuzzyStopWords = new Set(["a", "about", "account", "alerts", "and", "are", "audit", "biggest", "bot", "client", "coverage", "defect", "defects", "failure", "failures", "for", "gap", "gaps", "has", "health", "how", "is", "launch", "me", "most", "performance", "show", "status", "tell", "the", "what", "which", "with"]);
+  clients.filter((client) => !/^client \d+$/i.test(client)).forEach((client) => {
+    const target = assistantText(client);
+    const wordCount = target.split(" ").length;
+    const grams = assistantNgrams(query, Math.max(1, wordCount - 1), wordCount + 1);
+    grams.forEach((candidate) => {
+      if (candidate.length < 3 || candidate.split(" ").some((word) => fuzzyStopWords.has(word))) return;
+      const ratio = assistantEditDistance(candidate, target) / Math.max(candidate.length, target.length, 1);
+      if (!closest || ratio < closest.ratio) closest = { client, candidate, ratio };
+    });
+  });
+  if (closest?.ratio <= 0.28) {
+    return { client: closest.client, correction: `I corrected "${closest.candidate}" to ${closest.client}`, suggestion: "" };
+  }
+  const clientCue = /\b(client|account|program|campaign|for|about)\b/.test(query);
+  if (clientCue && closest?.ratio <= 0.42) {
+    return { client: "", correction: "", suggestion: `I could not find "${closest.candidate}". Did you mean ${closest.client}?` };
+  }
+  const numberedClient = query.match(/\bclient\s+\d+\b/)?.[0] || "";
+  if (numberedClient) {
+    return { client: "", correction: "", suggestion: `I could not match "${numberedClient}". The current rollout uses actual client names instead of numbered placeholders.` };
+  }
+  const namedPhrase = query.match(/\b(?:client|account|program|campaign)\s+([a-z0-9 ]+)/)?.[1] || query.match(/\b(?:for|about)\s+([a-z0-9 ]+)/)?.[1] || "";
+  const stopWords = new Set(["alert", "alerts", "audit", "audits", "biggest", "defect", "defects", "gap", "gaps", "has", "performance", "health", "failure", "failures", "issue", "issues", "coverage", "rollout", "launch", "monthly", "kpi", "summary", "status", "volume", "aht", "sl"]);
+  const unknownName = namedPhrase.split(" ").filter(Boolean).filter((word, index, words) => index < (words.findIndex((item) => stopWords.has(item)) < 0 ? words.length : words.findIndex((item) => stopWords.has(item)))).join(" ");
+  if (clientCue && unknownName.length >= 3) {
+    return { client: "", correction: "", suggestion: `I could not match "${unknownName}" to an uploaded client. Check the spelling or choose from the available client list.` };
+  }
+  return { client: getValue("clientFilter") || "", correction: "", suggestion: "" };
 }
 
 function matchesAssistantClient(value, client) {
   if (!client) return true;
-  const rowClient = norm(value).toLowerCase();
-  const target = norm(client).toLowerCase();
-  return rowClient === target || rowClient.startsWith(`${target} -`) || target.startsWith(`${rowClient} -`);
+  const rowClient = assistantText(value);
+  const target = assistantText(client);
+  return rowClient === target || rowClient.startsWith(`${target} `) || target.startsWith(`${rowClient} `);
 }
 
 function assistantScope(question) {
-  const client = findAssistantClient(question);
+  const resolution = resolveAssistantClient(question);
+  const client = resolution.client;
   return {
     client,
+    correction: resolution.correction,
+    suggestion: resolution.suggestion,
     alerts: (state.alerts || []).filter((row) => matchesAssistantClient(row.client, client)),
     impact: (state.impact || []).filter((row) => matchesAssistantClient(row.client, client)),
     monthly: (state.monthly || []).filter((row) => matchesAssistantClient(row.client, client)),
     batchClients: (state.batchClients || []).filter((row) => matchesAssistantClient(row.client, client)),
   };
+}
+
+function assistantAnswer(scope, answer) {
+  const correction = scope.correction ? `${scope.correction}${/[.!?]$/.test(scope.correction) ? "" : "."} ` : "";
+  return `${correction}${answer}`.trim();
 }
 
 function topEntry(rows, selector) {
@@ -568,7 +664,7 @@ function assistantFailureAnswer(scope, question) {
   const topCategories = Object.entries(countBy(issueRows, (row) => row.category)).sort((a, b) => b[1] - a[1]).slice(0, 5);
   const failedChecks = {};
   issueRows.forEach((row) => Object.entries(row.checks || {}).forEach(([check, result]) => {
-    if (result === "FAIL") failedChecks[check] = (failedChecks[check] || 0) + 1;
+    if (result === "FAIL" && !/overall status|expected threshold/i.test(check)) failedChecks[check] = (failedChecks[check] || 0) + 1;
   }));
   const checks = Object.entries(failedChecks).sort((a, b) => b[1] - a[1]).slice(0, 3);
   const label = scope.client || "The portfolio";
@@ -618,20 +714,84 @@ function assistantMonthlyAnswer(scope) {
   return `${scope.client || "Portfolio"} monthly KPI summary: average SL ${averageSl}%, average AHT ${averageAht}, handled volume ${handled.toLocaleString()}, and forecast volume ${forecast.toLocaleString()} across ${scope.monthly.length} row(s).`;
 }
 
+function assistantEfficiencyAnswer(scope) {
+  if (!scope.impact.length) return `No bot impact or efficiency rows are loaded${scope.client ? ` for ${scope.client}` : ""}.`;
+  const improved = scope.impact.filter((row) => /save|reduc|automat|assist|efficien|faster|improv/i.test([row.after, row.efficiency, row.hcImpact].join(" ")));
+  const manual = scope.impact.filter((row) => /manual|human|no change|no hc|no clear/i.test([row.after, row.efficiency, row.hcImpact].join(" ")));
+  const examples = improved.slice(0, 4).map((row) => `${row.task}: ${row.efficiency || row.after}`).filter(Boolean);
+  return `${scope.client || "Portfolio"} has ${improved.length} impact row(s) showing automation, savings, or reduced effort and ${manual.length} row(s) still indicating manual or human work. ${examples.length ? `Examples: ${examples.join("; ")}.` : "No quantified savings examples are recorded."}`;
+}
+
+function assistantNotesAnswer(scope) {
+  const details = [
+    ...scope.alerts.map((row) => row.notes),
+    ...scope.impact.map((row) => row.remarks),
+    ...scope.monthly.map((row) => row.drivers),
+  ].map(norm).filter(Boolean);
+  const unique = [...new Set(details)].slice(0, 6);
+  return unique.length ? `${scope.client || "Portfolio"} observations: ${unique.join("; ")}.` : `No notes, remarks, or KPI drivers are recorded${scope.client ? ` for ${scope.client}` : ""}.`;
+}
+
+function assistantAuditAnswer(scope) {
+  if (!scope.alerts.length) return `No audit or alert-check rows are loaded${scope.client ? ` for ${scope.client}` : ""}.`;
+  const dates = scope.alerts.map((row) => row.auditDate).filter(Boolean).sort();
+  const latest = dates[dates.length - 1] || "unavailable";
+  const thresholds = scope.alerts.filter((row) => row.expectedThreshold !== "" && row.expectedThreshold != null).length;
+  const frequencies = scope.alerts.filter((row) => row.expectedFreq !== "" && row.expectedFreq != null).length;
+  return `${scope.client || "Portfolio"} has ${scope.alerts.length} audit row(s); the latest audit date is ${latest}. ${thresholds} row(s) include an expected threshold and ${frequencies} include an expected frequency.`;
+}
+
+function assistantRecommendationAnswer(scope) {
+  const issueRows = scope.alerts.filter((row) => row.overallStatus !== "PASS");
+  const topCategory = topEntry(issueRows, (row) => row.category);
+  const uncovered = scope.impact.filter((row) => /no|unknown/i.test(row.covered));
+  const failedChecks = {};
+  issueRows.forEach((row) => Object.entries(row.checks || {}).forEach(([check, result]) => {
+    if (result === "FAIL" && !/overall status|expected threshold/i.test(check)) failedChecks[check] = (failedChecks[check] || 0) + 1;
+  }));
+  const topCheck = Object.entries(failedChecks).sort((a, b) => b[1] - a[1])[0];
+  const actions = [];
+  if (topCategory) actions.push(`prioritize ${topCategory} validation (${topCategory[1]} issue rows)`);
+  if (topCheck) actions.push(`address ${topCheck} (${topCheck[1]} failures)`);
+  if (uncovered.length) actions.push(`review ${uncovered.length} uncovered or unknown bot-impact rows`);
+  return actions.length ? `Recommended next actions for ${scope.client || "the portfolio"}: ${actions.join("; ")}.` : `No urgent corrective action is indicated for ${scope.client || "the current portfolio"}.`;
+}
+
+function assistantCountAnswer(scope, query) {
+  const clientCount = new Set(scope.alerts.map((row) => row.client).filter(Boolean)).size;
+  if (/client|account|program|campaign/.test(query)) return `${clientCount || assistantClients().filter((client) => !/^client \d+$/i.test(client)).length} client(s) are represented in the current scope.`;
+  if (/task|impact|automation|coverage/.test(query)) return `${scope.impact.length} bot-impact task row(s) are in the current scope.`;
+  if (/batch|rollout|wave|cohort/.test(query)) return `${(state.batches || []).length} batch row(s) and ${scope.batchClients.length} batch-client mapping row(s) are loaded.`;
+  if (/month|kpi/.test(query)) return `${scope.monthly.length} monthly KPI row(s) are in the current scope.`;
+  return `${scope.alerts.length} alert or audit row(s) are in the current scope.`;
+}
+
+function assistantClientList() {
+  const clients = assistantClients().filter((client) => !/^client \d+$/i.test(client));
+  return clients.length ? `Available clients: ${clients.sort().join(", ")}. You can use the full name, a close spelling, or aliases such as AEO, PDI, AIA, CDS, Philam, Philcare, or USBank.` : "No named clients are loaded.";
+}
+
 function buildAssistantAnswer(question) {
-  const query = norm(question).toLowerCase();
+  const query = assistantText(question);
   const scope = assistantScope(query);
   if (!(state.alerts || []).length && !(state.impact || []).length && !(state.monthly || []).length) return "No dashboard data is loaded. Upload an RTM workbook in Data Management first.";
-  if (!query || /help|what can you|questions/.test(query)) return "I can summarize alert health, compare client pass rates, identify failure drivers, explain bot coverage, list rollout dates, and summarize monthly SL, AHT, and volume.";
+  if (scope.suggestion) return `${scope.suggestion} Available clients include: ${assistantClients().filter((client) => !/^client \d+$/i.test(client)).sort().slice(0, 8).join(", ")}.`;
+  if (!query || /help|what can you|what do you|capabilit|commands|questions/.test(query)) return "I cover client names and aliases, portfolio summaries, alert and audit health, failure drivers, pass rates, bot coverage, manual work, efficiency and headcount impact, rollout schedules, monthly SL, AHT, volume, notes, source files, counts, and recommended next actions.";
   if (/hello|^hi$|^hey$/.test(query)) return "Hello. Ask me about RTM alert health, client performance, failure drivers, bot coverage, rollout dates, or monthly KPIs.";
-  if (/source|file|upload/.test(query)) return `Current source file(s): ${(state.sourceFiles || []).join(", ") || "none"}.`;
-  if (/rollout|batch|live week|go live/.test(query)) return assistantRolloutAnswer(scope);
-  if (/coverage|covered|automation|uncovered|bot impact/.test(query)) return assistantCoverageAnswer(scope);
-  if (/monthly|aht|service level|\bsl\b|volume|forecast/.test(query)) return assistantMonthlyAnswer(scope);
-  if (/fail|issue|risk|problem|check|category/.test(query)) return assistantFailureAnswer(scope, query);
-  if (/pass|health|performance|best|worst|compare/.test(query)) return assistantPerformanceAnswer(scope);
-  if (/summary|overview|insight|status|how are/.test(query)) return assistantPortfolioSummary(scope);
-  return `I could not map that question to the RTM dataset. Try "Give me a portfolio summary", "Which client has the most failures?", "Show bot coverage", or "What are the rollout dates?"`;
+  if (/(list|show|which|what) (the )?(available )?(clients|accounts|programs|campaigns)|client list|account list/.test(query)) return assistantClientList();
+  if (/source|dataset|workbook|spreadsheet|excel|uploaded file|data origin/.test(query)) return assistantAnswer(scope, `Current source file(s): ${(state.sourceFiles || []).join(", ") || "none"}.`);
+  if (/recommend|action|priority|next step|what should|improve|focus area|resolution/.test(query)) return assistantAnswer(scope, assistantRecommendationAnswer(scope));
+  if (/how many|\bcount\b|total number|number of/.test(query)) return assistantAnswer(scope, assistantCountAnswer(scope, query));
+  if (/rollout|batch|live week|live date|go live|golive|launch|deployment|implementation|schedule|timeline|wave|cohort/.test(query)) return assistantAnswer(scope, assistantRolloutAnswer(scope));
+  if (/efficien|saving|time saved|headcount|\bhc\b|\bfte\b|before bot|after bot|before and after|benefit|manual effort|human work|productivity/.test(query)) return assistantAnswer(scope, assistantEfficiencyAnswer(scope));
+  if (/note|remark|comment|observation|detail|explain|reason|\bwhy\b|driver/.test(query) && !/failure driver|issue driver/.test(query)) return assistantAnswer(scope, assistantNotesAnswer(scope));
+  if (/latest audit|audit date|audit history|threshold|frequency|duration|configuration|queue group|delivery/.test(query)) return assistantAnswer(scope, assistantAuditAnswer(scope));
+  if (/coverage|covered|automation|automated|uncovered|bot impact|bot support|supported by bot|scope|manual task/.test(query)) return assistantAnswer(scope, assistantCoverageAnswer(scope));
+  if (/monthly|\bkpi\b|\baht\b|average handle time|handle time|service level|\bsl\b|volume|workload|demand|forecast/.test(query)) return assistantAnswer(scope, assistantMonthlyAnswer(scope));
+  if (/fail|failure|error|defect|issue|risk|problem|check|category|gap|exception|discrepancy|breach|miss|non compliant|root cause|issue driver|failure driver/.test(query)) return assistantAnswer(scope, assistantFailureAnswer(scope, query));
+  if (/pass|success|health|performance|best|worst|compare|comparison|quality|accuracy|compliance|score|ranking|healthy/.test(query)) return assistantAnswer(scope, assistantPerformanceAnswer(scope));
+  if (/summary|overview|insight|status|how are|pulse|snapshot|picture/.test(query)) return assistantAnswer(scope, assistantPortfolioSummary(scope));
+  return `I could not map that question yet. ${assistantClientList()} Try asking for a summary, audit health, failure drivers, bot coverage, efficiency, rollout, monthly KPIs, notes, counts, or next actions.`;
 }
 
 function appendAssistantMessage(role, text) {
@@ -667,6 +827,7 @@ function initAssistant() {
         <button type="button" data-assistant-question="Give me a portfolio summary">Portfolio summary</button>
         <button type="button" data-assistant-question="Which client has the most failures?">Failure leaders</button>
         <button type="button" data-assistant-question="Show bot coverage">Bot coverage</button>
+        <button type="button" data-assistant-question="List available clients">Client list</button>
       </div>
       <form class="assistant-form" id="assistantForm">
         <input id="assistantInput" type="text" autocomplete="off" placeholder="Ask about alerts, clients, or rollout" aria-label="Ask the RTM assistant" />
@@ -689,7 +850,7 @@ function initAssistant() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !$("assistantPanel").hidden) setOpen(false);
   });
-  appendAssistantMessage("bot", "Ask me for portfolio insights, client performance, failure drivers, bot coverage, rollout dates, or monthly KPIs.");
+  appendAssistantMessage("bot", "Ask me about any client or RTM metric. I recognize aliases, close spellings, and synonyms, and I will suggest a client when a name is unclear.");
 }
 
 function escapeHtml(value) {
