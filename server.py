@@ -273,14 +273,14 @@ class Handler(SimpleHTTPRequestHandler):
             if hmac.compare_digest(supplied, PASSWORD):
                 token = secrets.token_urlsafe(32)
                 SESSIONS[token] = time.time() + SESSION_TTL_SECONDS
-                cookie = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Strict; Max-Age={SESSION_TTL_SECONDS}"
+                cookie = f"{SESSION_COOKIE}={token}; Path=/; HttpOnly; SameSite=Lax; Max-Age={SESSION_TTL_SECONDS}"
                 self.redirect("/api/data_management", cookie)
             else:
                 self.redirect("/login.html?error=1")
             return
         if path in {"/logout", "/api/logout"}:
             SESSIONS.pop(self.session_token(), None)
-            cookie = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0"
+            cookie = f"{SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
             self.redirect("/login.html", cookie)
             return
         if path not in {"/upload", "/api/upload"}:

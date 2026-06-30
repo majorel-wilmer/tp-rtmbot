@@ -1,4 +1,5 @@
 const DATA_SCHEMA_VERSION = 2;
+const PRODUCTION_ORIGIN = "https://tp-rtmbot.vercel.app";
 
 const sampleData = {
   batches: [
@@ -133,9 +134,10 @@ async function handleFiles(files) {
   files.forEach((file) => form.append("files", file, file.name));
   let next;
   try {
-    const response = await fetch("/api/upload", { method: "POST", body: form });
+    const response = await fetch("/api/upload", { method: "POST", body: form, credentials: "same-origin" });
     if (response.status === 401) {
-      window.location.href = "/login.html";
+      setText("uploadStatus", "Your session expired. Redirecting to the production login...");
+      window.location.href = `${window.location.origin}/login.html`;
       return;
     }
     if (!response.ok) {
@@ -857,6 +859,16 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function enforceProductionDataManagementOrigin() {
+  const isDataManagement = Boolean($("fileInput"));
+  const isVercelPreview = window.location.hostname.endsWith(".vercel.app") && window.location.origin !== PRODUCTION_ORIGIN;
+  if (isDataManagement && isVercelPreview) {
+    window.location.replace(`${PRODUCTION_ORIGIN}/api/data_management`);
+    return true;
+  }
+  return false;
+}
+
 $("fileInput")?.addEventListener("change", (event) => handleFiles([...event.target.files]));
 $("clearButton")?.addEventListener("click", () => {
   localStorage.removeItem("vcoRtmDashboardData");
@@ -882,5 +894,7 @@ document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
   });
 });
 
-initAssistant();
-loadInitialData();
+if (!enforceProductionDataManagementOrigin()) {
+  initAssistant();
+  loadInitialData();
+}
