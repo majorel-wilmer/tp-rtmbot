@@ -51,5 +51,4 @@ def session_cookie(token: str, clear: bool = False) -> str:
     max_age = 0 if clear else SESSION_TTL_SECONDS
     value = "" if clear else token
     secure = "; Secure" if os.environ.get("VERCEL") else ""
-    return f"{COOKIE_NAME}={value}; Path=/; HttpOnly; SameSite=Strict; Max-Age={max_age}{secure}"
-
+    return f"{COOKIE_NAME}={value}; Path=/; HttpOnly; SameSite=Lax; Max-Age={max_age}{secure}"
