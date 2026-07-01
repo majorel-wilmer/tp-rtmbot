@@ -4,34 +4,37 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Data Management | VCO - RTM Bot</title>
-    <link rel="stylesheet" href="/styles.css?v=20260630-4" />
+    <link rel="stylesheet" href="/styles.css?v=20260701-1" />
   </head>
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">RTM</div>
-        <div>
-          <h1>VCO - RTM Bot</h1>
-          <p>Alert health, bot impact, and rollout readiness</p>
+        <div class="brand-mark">VCO</div>
+        <div class="brand-copy">
+          <h1>RTM Command Center</h1>
+          <p>VCO Intelligence Suite</p>
         </div>
       </div>
 
       <nav class="page-nav" aria-label="Dashboard pages">
-        <a href="/index.html">Overview</a>
-        <a href="/rollout.html">Rollout &amp; Analysis</a>
-        <a href="/alerts.html">Alert Queue</a>
-        <a class="active" href="/api/data_management" aria-current="page">Data Management</a>
+        <span class="nav-section-label">Operations</span>
+        <a href="/index.html"><i data-lucide="layout-dashboard"></i><span>Executive Overview</span></a>
+        <a href="/rollout.html"><i data-lucide="calendar-range"></i><span>Rollout &amp; Analysis</span></a>
+        <a href="/alerts.html"><i data-lucide="triangle-alert"></i><span>Alert Queue</span></a>
+        <span class="nav-section-label governance">Data Governance</span>
+        <a class="active" href="/api/data_management" aria-current="page"><i data-lucide="database"></i><span>Data Management</span></a>
       </nav>
 
-      <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
+      <button class="theme-toggle" type="button" data-theme-toggle><i data-lucide="moon"></i><span>Dark mode</span></button>
       <form class="logout-form" method="post" action="/api/logout">
-        <button class="logout-button" type="submit">Sign out</button>
+        <button class="logout-button" type="submit"><i data-lucide="log-out"></i><span>Sign out</span></button>
       </form>
     </aside>
 
     <main class="main">
       <header class="topbar">
         <div>
+          <span class="page-eyebrow">VCO / Data Governance</span>
           <h1>Data Management</h1>
           <p id="dataSubtitle">Upload and maintain dashboard data</p>
         </div>
@@ -50,15 +53,16 @@
           </label>
           <input id="fileInput" type="file" accept=".xlsx,.xls" multiple />
           <div class="data-actions">
-            <a class="template-link" href="/VCO_RTM_Bot_Upload_Template.xlsx" download>Download Upload Template</a>
-            <button id="clearButton" type="button">Reset Data</button>
+            <a class="template-link" href="/VCO_RTM_Bot_Upload_Template.xlsx" download><i data-lucide="file-down"></i><span>Download Template</span></a>
+            <button id="clearButton" type="button"><i data-lucide="rotate-ccw"></i><span>Reset Data</span></button>
           </div>
           <div id="uploadStatus" class="upload-status">Loading dashboard data...</div>
         </section>
       </div>
     </main>
 
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <script src="/data/actual_data.js"></script>
-    <script src="/script.js?v=20260630-6"></script>
+    <script src="/script.js?v=20260701-1"></script>
   </body>
 </html>
