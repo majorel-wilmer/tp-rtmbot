@@ -62,13 +62,15 @@ const cssVar = (name) => getComputedStyle(document.body).getPropertyValue(name).
 function applyTheme(theme, shouldRender = false) {
   document.body.dataset.theme = theme;
   document.querySelectorAll("[data-theme-toggle]").forEach((button) => {
-    button.textContent = theme === "dark" ? "Light mode" : "Dark mode";
+    const icon = theme === "dark" ? "sun" : "moon";
+    button.innerHTML = `<i data-lucide="${icon}"></i><span>${theme === "dark" ? "Light mode" : "Dark mode"}</span>`;
     button.setAttribute("aria-label", `Switch to ${theme === "dark" ? "light" : "dark"} mode`);
   });
+  window.lucide?.createIcons();
   if (shouldRender) render();
 }
 
-applyTheme(localStorage.getItem("vcoRtmTheme") === "dark" ? "dark" : "light");
+applyTheme(localStorage.getItem("vcoRtmTheme") === "light" ? "light" : "dark");
 
 function loadState() {
   try {
@@ -203,7 +205,7 @@ function drawEmpty(ctx, width, height, message = "No data") {
   ctx.fillText(message, width / 2, height / 2);
 }
 
-function drawBarChart(id, labels, values, color = "#2563eb", horizontal = false, valueSuffix = "") {
+function drawBarChart(id, labels, values, color = cssVar("--violet"), horizontal = false, valueSuffix = "") {
   const { ctx, width, height } = canvasSetup(id);
   if (!labels.length) return drawEmpty(ctx, width, height);
   const max = Math.max(...values, 1);
@@ -258,7 +260,7 @@ function drawLineChart(id, labels, values) {
   ctx.lineTo(left, top + chartH);
   ctx.lineTo(left + chartW, top + chartH);
   ctx.stroke();
-  ctx.strokeStyle = "#2563eb";
+  ctx.strokeStyle = cssVar("--accent");
   ctx.lineWidth = 3;
   ctx.beginPath();
   values.forEach((value, i) => {
@@ -271,7 +273,7 @@ function drawLineChart(id, labels, values) {
   values.forEach((value, i) => {
     const x = left + (labels.length === 1 ? chartW / 2 : (i / (labels.length - 1)) * chartW);
     const y = top + chartH - (value / 100) * chartH;
-    ctx.fillStyle = "#2563eb";
+    ctx.fillStyle = cssVar("--accent");
     ctx.beginPath();
     ctx.arc(x, y, 4, 0, Math.PI * 2);
     ctx.fill();
@@ -286,7 +288,7 @@ function drawDoughnut(id, labels, values) {
   const { ctx, width, height } = canvasSetup(id);
   const total = values.reduce((a, b) => a + b, 0);
   if (!total) return drawEmpty(ctx, width, height);
-  const colors = ["#16a34a", "#dc2626", "#d97706", "#64748b"];
+  const colors = [cssVar("--green"), cssVar("--red"), cssVar("--amber"), cssVar("--violet")];
   let start = -Math.PI / 2;
   const cx = width / 2;
   const cy = 112;
@@ -348,7 +350,7 @@ function renderCharts(rows) {
   if ($("statusChart")) drawDoughnut("statusChart", Object.keys(statusCounts), Object.values(statusCounts));
 
   const categoryFails = countBy(rows.filter((r) => r.overallStatus !== "PASS"), (r) => r.category);
-  if ($("categoryChart")) drawBarChart("categoryChart", Object.keys(categoryFails), Object.values(categoryFails), "#dc2626", true);
+  if ($("categoryChart")) drawBarChart("categoryChart", Object.keys(categoryFails), Object.values(categoryFails), cssVar("--red"), true);
 
   const byDate = {};
   rows.forEach((r) => {
@@ -361,7 +363,7 @@ function renderCharts(rows) {
   if ($("trendChart")) drawLineChart("trendChart", dates, dates.map((d) => Math.round((byDate[d].pass / byDate[d].total) * 100)));
 
   const coverage = countBy(visibleImpact(), (r) => /partial/i.test(r.covered) ? "Partial" : /yes/i.test(r.covered) ? "Covered" : /no/i.test(r.covered) ? "Not Covered" : "Unknown");
-  if ($("coverageChart")) drawBarChart("coverageChart", Object.keys(coverage), Object.values(coverage), "#0f766e");
+  if ($("coverageChart")) drawBarChart("coverageChart", Object.keys(coverage), Object.values(coverage), cssVar("--teal"));
 
   const clientStats = {};
   rows.forEach((row) => {
@@ -374,14 +376,14 @@ function renderCharts(rows) {
     .map(([client, stats]) => [client, Math.round((stats.pass / stats.total) * 100)])
     .sort((a, b) => b[1] - a[1]);
   if ($("clientPassChart")) {
-    drawBarChart("clientPassChart", clientPassRates.map(([client]) => client), clientPassRates.map(([, rate]) => rate), "#2563eb", true, "%");
+    drawBarChart("clientPassChart", clientPassRates.map(([client]) => client), clientPassRates.map(([, rate]) => rate), cssVar("--violet"), true, "%");
   }
 
   const clientVolumes = Object.entries(countBy(rows, (row) => row.client))
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
   if ($("clientVolumeChart")) {
-    drawBarChart("clientVolumeChart", clientVolumes.map(([client]) => client), clientVolumes.map(([, total]) => total), "#7c3aed", true);
+    drawBarChart("clientVolumeChart", clientVolumes.map(([client]) => client), clientVolumes.map(([, total]) => total), cssVar("--accent"), true);
   }
 
   const failedChecks = {};
@@ -397,7 +399,7 @@ function renderCharts(rows) {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 8);
   if ($("failedChecksChart")) {
-    drawBarChart("failedChecksChart", topFailedChecks.map(([check]) => check), topFailedChecks.map(([, total]) => total), "#dc2626", true);
+    drawBarChart("failedChecksChart", topFailedChecks.map(([check]) => check), topFailedChecks.map(([, total]) => total), cssVar("--red"), true);
   }
 
   const coverageByClient = {};
@@ -411,11 +413,11 @@ function renderCharts(rows) {
     .map(([client, stats]) => [client, Math.round((stats.covered / stats.total) * 100)])
     .sort((a, b) => b[1] - a[1]);
   if ($("clientCoverageChart")) {
-    drawBarChart("clientCoverageChart", clientCoverageRates.map(([client]) => client), clientCoverageRates.map(([, rate]) => rate), "#0f766e", true, "%");
+    drawBarChart("clientCoverageChart", clientCoverageRates.map(([client]) => client), clientCoverageRates.map(([, rate]) => rate), cssVar("--teal"), true, "%");
   }
 
   const monthlyRows = state.monthly.filter((r) => !getValue("clientFilter") || r.client === getValue("clientFilter"));
-  if ($("monthlyChart")) drawBarChart("monthlyChart", monthlyRows.map((r) => `${r.client} ${r.month}`), monthlyRows.map((r) => Math.round(r.sl * 100)), "#0f766e");
+  if ($("monthlyChart")) drawBarChart("monthlyChart", monthlyRows.map((r) => `${r.client} ${r.month}`), monthlyRows.map((r) => Math.round(r.sl * 100)), cssVar("--teal"));
 }
 
 function renderTimeline() {

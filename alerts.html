@@ -4,29 +4,31 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Alert Queue | VCO - RTM Bot</title>
-    <link rel="stylesheet" href="styles.css?v=20260630-4" />
+    <link rel="stylesheet" href="styles.css?v=20260701-1" />
   </head>
   <body>
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark">RTM</div>
-        <div>
-          <h1>VCO - RTM Bot</h1>
-          <p>Alert health, bot impact, and rollout readiness</p>
+        <div class="brand-mark">VCO</div>
+        <div class="brand-copy">
+          <h1>RTM Command Center</h1>
+          <p>VCO Intelligence Suite</p>
         </div>
       </div>
 
       <nav class="page-nav" aria-label="Dashboard pages">
-        <a href="index.html">Overview</a>
-        <a href="rollout.html">Rollout &amp; Analysis</a>
-        <a class="active" href="alerts.html" aria-current="page">Alert Queue</a>
-        <a href="/api/data_management">Data Management</a>
+        <span class="nav-section-label">Operations</span>
+        <a href="index.html"><i data-lucide="layout-dashboard"></i><span>Executive Overview</span></a>
+        <a href="rollout.html"><i data-lucide="calendar-range"></i><span>Rollout &amp; Analysis</span></a>
+        <a class="active" href="alerts.html" aria-current="page"><i data-lucide="triangle-alert"></i><span>Alert Queue</span></a>
+        <span class="nav-section-label governance">Data Governance</span>
+        <a href="/api/data_management"><i data-lucide="database"></i><span>Data Management</span></a>
       </nav>
 
-      <button class="theme-toggle" type="button" data-theme-toggle>Dark mode</button>
+      <button class="theme-toggle" type="button" data-theme-toggle><i data-lucide="moon"></i><span>Dark mode</span></button>
 
       <section class="filters">
-        <h2>Filters</h2>
+        <h2><i data-lucide="sliders-horizontal"></i> View Filters</h2>
         <label>
           Client
           <select id="clientFilter"></select>
@@ -46,10 +48,11 @@
     <main class="main">
       <header class="topbar">
         <div>
+          <span class="page-eyebrow">VCO / Data Quality</span>
           <h1>Alert Queue</h1>
           <p id="dataSubtitle">Alert-level validation and findings</p>
         </div>
-        <button id="exportButton" type="button">Export Alert CSV</button>
+        <button id="exportButton" type="button"><i data-lucide="download"></i><span>Export Alert CSV</span></button>
       </header>
 
       <section class="panel table-panel alert-page-panel">
@@ -71,7 +74,8 @@
       </section>
     </main>
 
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js"></script>
     <script src="data/actual_data.js"></script>
-    <script src="script.js?v=20260630-6"></script>
+    <script src="script.js?v=20260701-1"></script>
   </body>
 </html>

@@ -12,6 +12,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from server import parse_workbook
 from vercel_auth import is_authenticated
 
+PRODUCTION_ORIGIN = "https://tp-rtmbot.vercel.app"
+
+
+def is_dashboard_request(headers) -> bool:
+    origin = headers.get("Origin", "").rstrip("/")
+    fetch_site = headers.get("Sec-Fetch-Site", "")
+    return origin == PRODUCTION_ORIGIN and fetch_site in {"same-origin", "same-site"}
+
 
 class handler(BaseHTTPRequestHandler):
     def send_json(self, status: int, payload: dict):
@@ -24,7 +32,7 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def do_POST(self):
-        if not is_authenticated(self.headers):
+        if not is_authenticated(self.headers) and not is_dashboard_request(self.headers):
             self.send_json(401, {"error": "Authentication required"})
             return
 
